@@ -21,9 +21,14 @@ Table of contents:
       - [Push image to IBM Cloud Registry](#push-image-to-ibm-cloud-registry)
       - [Cheatsheet](#cheatsheet)
   - [2. Setup and Installation](#2-setup-and-installation)
-    - [Installation Docker on WSL](#installation-docker-on-wsl)
-    - [Creating an IBM Cloud Account](#creating-an-ibm-cloud-account)
+    - [2.1 Installation of Docker on WSL 2](#21-installation-of-docker-on-wsl-2)
+    - [2.2 Install Databases on WSL 2](#22-install-databases-on-wsl-2)
+    - [2.3 Creating an IBM Container Registry Namespace](#23-creating-an-ibm-container-registry-namespace)
   - [3. Kubernetes Basics](#3-kubernetes-basics)
+    - [3.1 Kubernetes Architecture](#31-kubernetes-architecture)
+    - [3.2 Kubernetes Objects](#32-kubernetes-objects)
+    - [3.3 Kubernetes CLI: `kubectl`](#33-kubernetes-cli-kubectl)
+    - [3.4 Exercises](#34-exercises)
 
 ## 1. Introduction: Docker Containers
 
@@ -261,18 +266,133 @@ Most of this section was done by myself, it's not included in the course.
 
 Check: [tool_guides/docker_swarm_kubernetes](https://github.com/mxagar/tool_guides/tree/master/docker_swarm_kubernetes).
 
-### Installation Docker on WSL
+### 2.1 Installation of Docker on WSL 2
 
-- []()
+Links, sources:
 
-### Creating an IBM Cloud Account
+- [Install Docker in WSL 2 without Docker Desktop](https://www.youtube.com/watch?v=SDk3pqFXgs8)
 
-Check my notes at []().
+### 2.2 Install Databases on WSL 2
 
-Also, there might be a symbolic link in the local cloned folder: []().
+Even though relational databases are not related to Docker/Kubernetes, many apps require the usage of an SQL database. Therefore, I describe here how this is done.
+
+Links, sources:
+
+- [Get started with databases on Windows Subsystem for Linux](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-database)
+- [Set up PostgreSQL on WSL2 and Access with pgAdmin on Windows](https://chloesun.medium.com/set-up-postgresql-on-wsl2-and-connect-to-postgresql-with-pgadmin-on-windows-ca7f0b7f38ab)
+
+### 2.3 Creating an IBM Container Registry Namespace
+
+A namespace is a slice of a registry to which you can push your images. We can create an IBM Cloud account and create a namespace in the Container Registry tool/service.
+
+Check my notes at [computer_vision_udacity/02_Cloud_Computing/IBM_Cloud_Notes.md](https://github.com/mxagar/computer_vision_udacity/blob/main/02_Cloud_Computing/IBM_Cloud_Notes.md).
+
+Also, there might be a symbolic link in the local cloned folder: [`IBM_Cloud_Notes.md`](./IBM_Cloud_Notes.md).
 
 ## 3. Kubernetes Basics
 
-:construction:
+Kubernetes (aka. k8s) is the most popular and nowadays standard container orchestration system; other orchestration tools:
 
-TBD.
+- Docker Swarm
+- Marathon
+- Nomad
+
+Container orchestration is needed when we have several containers to build one app (several services). Orchestration handles the entire lifecycle of all the containers:
+
+- Definition of the image locations in the registry
+  - New container deployments are automatically scheduled
+- Provisionining and Deployment
+- Management
+  - System parameters are controlled
+  - File parameters too
+- Scaling and load balancng
+- Networking: secure
+- Availability is assured
+- Rolling updates or roll backs
+- Health checks can be done
+
+Typically, a configuration file in `YAML` or `JSON` is used.
+
+Kubernetes **is not**
+
+- a PaaS
+- limited to Docker
+
+Important Kubernetes concepts:
+
+- Pods and workloads: smallest deployable compute object and the higher-level abstractions to run workloads.
+- Services: applications running on sets of Pods.
+- Storage: persistent and temporary storage for pods.
+- Configuration: pod configuration.
+- Security: for pod and API access.
+- Policies: for groups so that pods can be found and managed.
+- Schedule, Eviction: run/terminate pods depending on resources.
+- Preemption: termination of pods if low priority so that others can run on nodes.
+- Administration: Kubernetes cluster administration.
+- Secrets: sensitive information storage and management (SSH keys, etc.).
+- Self-healing: restarts/replaces pods if necessary
+- Service discovery and load balancing: pods are discovered by IP or DNS.
+
+Kubernetes ecosystem: many tools and providers.
+
+### 3.1 Kubernetes Architecture
+
+The following two images show the architecture of a **Kubernetes deployment**, also known as a **Kubernetes cluster**. Such a cluster is a deployment of an application which runs several containers arranged as we define.
+
+![Kubernetes Control Plane](./pics/kubernetes_control_plane.jpg)
+
+![Kubernetes Worker Nodes](./pics/kubernetes_worker_nodes.jpg)
+
+From the images:
+
+- The user interacts with the **Kubernetes Control Plane** via an UI or the `kubectl` CLI.
+- The **Kubernetes Control Plane** controls and maintains the desired cluster state, e.g., monitoring of resources, scaling if necessary, etc.; it has these components:
+    - `kube-api-server`: main API used by all components, like the front-end for k8s.
+    - `etcd`: databse which stores cluster state and configuration data.
+    - `kube-scheduler`: assigns created pods to nodes (considering resources, scheduling, etc.).
+    - `kube-controller-manager`: monitors cluster state and assures it has the desired one.
+    - `cloud-controller-manager`: controlers that interact with the underlying cloud provider. Kubernetes is Open Source and all cloud providers have an interface with it.
+- Nodes = Worker machines. They can be virtual or physical. They are not created by Kubernetes, but by the cloud provider! They are managed by the control plane.
+- Pods: are run in nodes; a pod is the smallest deployment entity and can contain several containers.
+- Containers share the resources of the node and can communicate among themselves.
+- `Kubelet`: it is a process running on each node which communicates with the `kube-api-server`; it ensures that the pods are running.
+- Container runtime = Docker: it downloads the images and runs the containers. Usually Docker is employedm but there are others, too.
+- `Kube-proxy`: it handles comms between pods, from within or outside.
+
+### 3.2 Kubernetes Objects
+
+Terminology:
+
+- Object: something with **identity**, **state** and **behavior**.
+- Entity: thing with identity and data.
+- Persistent: which lasts.
+
+Kubernetes objects are **persistent entities**:
+
+- Pods
+- Namespaces
+- ReplicaSets
+- Deployments
+
+Kubernets objects consist of two main fields:
+
+- Object spec: desired state defined by user
+- Status: current state
+
+Objects have:
+
+- Labels: non-unique key-value pairs used for identification.
+- Label selectors: used to group objects by their labels.
+
+Namespaces:
+
+- 
+
+
+### 3.3 Kubernetes CLI: `kubectl`
+
+
+
+### 3.4 Exercises
+
+
