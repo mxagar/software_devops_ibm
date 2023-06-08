@@ -21,7 +21,7 @@ spec:
         run: hello-world
     spec:
       containers:
-      - image: us.icr.io/<my_namespace>/hello-world:1
+      - image: us.icr.io/sn-labs-mxagar/hello-world:1
         imagePullPolicy: Always
         name: hello-world
         ports:
