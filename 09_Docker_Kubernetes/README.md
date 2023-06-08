@@ -33,6 +33,10 @@ Table of contents:
     - [3.3 Kubernetes CLI: `kubectl`](#33-kubernetes-cli-kubectl)
       - [Common Commads](#common-commads)
     - [3.4 Exercises](#34-exercises)
+      - [Connect to Cluster and Create a Pod with Imperative Commands](#connect-to-cluster-and-create-a-pod-with-imperative-commands)
+      - [Create a Pod with Imperative Object Configuration](#create-a-pod-with-imperative-object-configuration)
+      - [Create a Pod with a Declarative Command](#create-a-pod-with-a-declarative-command)
+      - [Load Balancing the Application](#load-balancing-the-application)
 
 ## 1. Introduction: Docker Containers
 
@@ -147,6 +151,33 @@ The working directory contains a simple Node.js application that we will run in 
 
 I have replicated the folder in [`lab/01_ContainersAndDocker/`](./lab/01_ContainersAndDocker/), so the exercise can be carried out locally instead of using the provided environment. Also, note that [`IBM_Cloud_Notes.md`](https://github.com/mxagar/computer_vision_udacity/blob/main/02_Cloud_Computing/IBM_Cloud_Notes.md) explains how to set up an IBM Cloud account to use a Registry.
 
+Here are the contents of the `Dockerfile` and the `app.js`:
+
+```Dockerfile
+FROM node:9.4.0-alpine
+COPY app.js .
+COPY package.json .
+RUN npm install &&\
+    apk update &&\
+    apk upgrade
+EXPOSE  8080
+CMD node app.js
+```
+
+```javascript
+var express = require('express')
+var os = require("os");
+var hostname = os.hostname();
+var app = express()
+
+app.get('/', function(req, res) {
+  res.send('Hello world from ' + hostname + '! Your app is up and running!\n')
+})
+app.listen(8080, function() {
+  console.log('Sample app is listening on port 8080.')
+})
+```
+
 #### First interaction
 
 ```bash
@@ -166,17 +197,6 @@ docker ps -a # container not there anymore
 ```
 
 #### Building the image
-
-```Dockerfile
-FROM node:9.4.0-alpine
-COPY app.js .
-COPY package.json .
-RUN npm install &&\
-    apk update &&\
-    apk upgrade
-EXPOSE  8080
-CMD node app.js
-```
 
 ```bash
 # Build the image
@@ -588,11 +608,249 @@ kubectl proxy 	# Creates a proxy server between a localhost and the Kubernetes A
 
 An environment is generated with a Terminal.
 
-The working directory contains ...
+The working directory contains the same simple Node.js application that we will run in a container/Pod. The app will print a hello message along with the hostname. The following files are needed to run the app in a container/Pod:
 
-I have replicated the folder in [`lab/02_IntroKubernetes/`](./lab/02_IntroKubernetes/), so the exercise can be carried out locally instead of using the provided environment. Also, note that [`IBM_Cloud_Notes.md`](https://github.com/mxagar/computer_vision_udacity/blob/main/02_Cloud_Computing/IBM_Cloud_Notes.md) explains how to set up an IBM Cloud account.
+- `app.js` is the main application, which simply replies with a hello world message.
+- `package.json` defines the dependencies of the application.
+- `Dockerfile` defines the instructions Docker uses to build the image.
+- `hello-world-create.yaml`: YAML for imperative configuration command.
+- `hello-world-apply.yaml`: YAML for declarative configuration command.
+
+I have replicated the folder in [`lab/02_IntroKubernetes/`](./lab/02_IntroKubernetes/), so the exercise can be carried out locally instead of using the provided environment. However, in the environment we have already a cluster set up
+
+Also, note that [`IBM_Cloud_Notes.md`](https://github.com/mxagar/computer_vision_udacity/blob/main/02_Cloud_Computing/IBM_Cloud_Notes.md) explains how to set up an IBM Cloud account.
+
+To recap, here are the contents of the `Dockerfile` and the `app.js`:
+
+```Dockerfile
+FROM node:9.4.0-alpine
+COPY app.js .
+COPY package.json .
+RUN npm install &&\
+    apk update &&\
+    apk upgrade
+EXPOSE  8080
+CMD node app.js
+```
+
+```javascript
+var express = require('express')
+var os = require("os");
+var hostname = os.hostname();
+var app = express()
+
+app.get('/', function(req, res) {
+  res.send('Hello world from ' + hostname + '! Your app is up and running!\n')
+})
+app.listen(8080, function() {
+  console.log('Sample app is listening on port 8080.')
+})
+```
+
+#### Connect to Cluster and Create a Pod with Imperative Commands
+
+```bash
+kubectl version
+# Major:"1", Minor:"25", GitVersion:"v1.25.9"
+
+# Clone project files - NOT necessary locally
+[ ! -d 'CC201' ] && git clone https://github.com/ibm-developer-skills-network/CC201.git
+cd CC201/labs/2_IntroKubernetes/
+ls
+# app.js  Dockerfile  hello-world-apply.yaml  hello-world-create.yaml  package.json
+
+# Get cluster information
+kubectl config get-clusters
+# labs-prod-kubernetes-sandbox/c8ana0sw0ljj8gkugn50
+
+# A context is a group of access parameters,
+# including a cluster, a user, and a namespace.
+# View your current context
+kubectl config get-contexts
+
+# List all the Pods in your namespace
+kubectl get pods
+
+# Export namesace as env variable
+export MY_NAMESPACE=sn-labs-$USERNAME
+
+# Build and push the image
+docker build -t us.icr.io/$MY_NAMESPACE/hello-world:1 . && docker push us.icr.io/$MY_NAMESPACE/hello-world:1
+
+# Run the hello-world image as a container in Kubernetes
+# --overrides option here enables us to specify the needed credentials to pull this image from IBM Cloud Container Registry
+# This is an imperative command
+kubectl run hello-world --image us.icr.io/$MY_NAMESPACE/hello-world:1 --overrides='{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"icr"}]}}}}'
+
+# List the Pods in your namespace
+kubectl get pods
+kubectl get pods -o wide
+
+# Describe the Pod to get more details about it
+# A lot of info is shown: Pod, container, etc.
+kubectl describe pod hello-world
+
+# Delete the Pod; when done, check it's gone
+kubectl delete pod hello-world
+kubectl get pods
+```
+
+#### Create a Pod with Imperative Object Configuration
+
+This exercise continues where the previous ended.
+
+Instead of running the Pod with an imperative and manual command, we can define the Pod configuration in `hello-world-create.yaml` and launch it imperatively. This has the advantage that the configuration is persisted in the YAML, so we can use version control.
+
+`hello-world-create.yaml`:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hello-world
+spec:
+  containers:
+  - name: hello-world
+    # The namespace needs to be edited: sn-labs-mxagar
+    image: us.icr.io/<my_namespace>/hello-world:1
+    ports:
+    - containerPort: 8080
+  imagePullSecrets:
+  - name: icr
+```
+
+```bash
+# Create Pod: Imperative configuration
+kubectl create -f hello-world-create.yaml
+
+# Check it's there
+kubectl get pods
+
+# Delete it and check
+kubectl delete pod hello-world
+kubectl get pods
+```
+
+#### Create a Pod with a Declarative Command
+
+This exercise continues where the previous ended.
+
+Instead of running the Pod with an imperative configuration, we can define the Pod and command configuration in `hello-world-apply.yaml`, so we use a declarative command style. This has the advantage that everything is persisted in the YAML, so we can use version control.
+
+`hello-world-apply.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  generation: 1
+  labels:
+    run: hello-world
+  name: hello-world
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      run: hello-world
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        run: hello-world
+    spec:
+      containers:
+        # The namespace needs to be edited: sn-labs-mxagar
+      - image: us.icr.io/<my_namespace>/hello-world:1
+        imagePullPolicy: Always
+        name: hello-world
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 2m
+            memory: 30Mi
+          requests:
+            cpu: 1m
+            memory: 10Mi   
+      imagePullSecrets:
+      - name: icr
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+```
+
+```bash
+# Create Pod: Declarative command
+# Kubernetes automatically creates a deployment
+# with 3 pod replicas
+kubectl apply -f hello-world-apply.yaml
+
+# Check it's there
+kubectl get deployments
+kubectl get pods
+
+# If we delete one pod, a new one will be created
+# since the current state will be modified to match the desired
+# state with 3 replicas
+# Replace <pod_name> with a valid name obtained with 
+# kubectl get pods
+kubectl delete pod <pod_name> && kubectl get pods
+
+# Wait and check we return to having 3 pods
+kubectl get pods
+```
 
 
+#### Load Balancing the Application
 
+This exercise continues where the previous ended.
 
+We have a deployment and we want to expose it to the internet using a load balancer.
 
+```bash
+# This command creates what is called a ClusterIP Service.
+# This creates an IP address that accessible within the cluster.
+kubectl expose deployment/hello-world
+# service/hello-world exposed
+
+# Get services, with their ClusterIP
+kubectl get services
+# ... 172.21.87.140
+
+# Split the Terminal: Temrinal > Split Terminal
+# This assures that the environment variables are kept
+# Now in the new terminal, we create a proxy.
+# Note that a ClusterIP is not accessible from outside,
+# but a proxy makes that possible.
+# HOWEVER, we never do it so in a production environment.
+kubectl proxy
+# Starting to serve on 127.0.0.1:8001
+# Now, we need to keep this window open
+# When we finish, close it with Ctrl+C
+
+# In the first Terminal, ping the app
+curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/proxy
+# Hello world from hello-world-5475f58c99-4sl8j! Your app is up and running!
+
+# Note that the output includes the Pod name
+# if we run it in a loop, the load balancer will route
+# the request to different Pods
+for i in `seq 10`; do curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/proxy; done
+# Hello world from hello-world-5475f58c99-5h8qq! Your app is up and running!
+# Hello world from hello-world-5475f58c99-5h8qq! Your app is up and running!
+# Hello world from hello-world-5475f58c99-5h8qq! Your app is up and running!
+# Hello world from hello-world-5475f58c99-4sl8j! Your app is up and running!
+# Hello world from hello-world-5475f58c99-5h8qq! Your app is up and running!
+
+# Delete the deployment and the service
+kubectl delete deployment/hello-world service/hello-world
+
+# Close the proxy with Ctrl+C
+# in the second Terminal
+```
