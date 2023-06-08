@@ -6,6 +6,9 @@ I have some related repositories in which I compile a guide on Docker; this cour
 
 - [udemy-docker-mastery](https://github.com/mxagar/udemy-docker-mastery)
 - [tool_guides/docker_swarm_kubernetes](https://github.com/mxagar/tool_guides/tree/master/docker_swarm_kubernetes)
+- [computer_vision_udacity/02_Cloud_Computing/IBM_Cloud_Notes.md](https://github.com/mxagar/computer_vision_udacity/blob/main/02_Cloud_Computing/IBM_Cloud_Notes.md)
+
+In particular, the latter explains how to set up a trial IBM Cloud account with which we can run the exercises from this course. Otherwise, the environment provided in the course can be used, too.
 
 Table of contents:
 
@@ -28,6 +31,7 @@ Table of contents:
     - [3.1 Kubernetes Architecture](#31-kubernetes-architecture)
     - [3.2 Kubernetes Objects](#32-kubernetes-objects)
     - [3.3 Kubernetes CLI: `kubectl`](#33-kubernetes-cli-kubectl)
+      - [Common Commads](#common-commads)
     - [3.4 Exercises](#34-exercises)
 
 ## 1. Introduction: Docker Containers
@@ -141,7 +145,7 @@ The working directory contains a simple Node.js application that we will run in 
 - `package.json` defines the dependencies of the application.
 - `Dockerfile` defines the instructions Docker uses to build the image.
 
-I have replicated the folder in [`lab/01_ContainersAndDocker/`](./lab/01_ContainersAndDocker/), so the exercise can be carried out locally.
+I have replicated the folder in [`lab/01_ContainersAndDocker/`](./lab/01_ContainersAndDocker/), so the exercise can be carried out locally instead of using the provided environment. Also, note that [`IBM_Cloud_Notes.md`](https://github.com/mxagar/computer_vision_udacity/blob/main/02_Cloud_Computing/IBM_Cloud_Notes.md) explains how to set up an IBM Cloud account to use a Registry.
 
 #### First interaction
 
@@ -249,15 +253,14 @@ docker stop $(docker ps -q) 	# Stops all running containers.
 docker tag 	# Creates a tag for a target image that refers to a source image.
 docker –version 	# Displays the version of the Docker CLI.
 exit 	# Closes the terminal session.
-export MY_NAMESPACE 	vExports a namespace as an environment variable.
-git clone 	# Clones the git repository that contains the artifacts needed.
+
+export MY_NAMESPACE 	# Exports a namespace as an environment variable.
 ibmcloud cr images 	# Lists images in the IBM Cloud Container Registry.
 ibmcloud cr login 	# Logs your local Docker daemon into IBM Cloud Container Registry.
 ibmcloud cr namespaces 	# Views the namespaces you have access to.
 ibmcloud cr region-set 	# Ensures that you are targeting the region appropriate to your cloud account.
 ibmcloud target 	# Provides information about the account you’re targeting.
 ibmcloud version 	# Displays the version of the IBM Cloud CLI.
-ls 	# Lists the contents of this directory to see the artifacts. 
 ```
 
 ## 2. Setup and Installation
@@ -367,7 +370,7 @@ Terminology:
 - Entity: thing with identity and data.
 - Persistent: which lasts.
 
-Kubernetes objects are **persistent entities**:
+Kubernetes objects are **persistent entities**; examples:
 
 - Pods
 - Namespaces
@@ -379,20 +382,217 @@ Kubernets objects consist of two main fields:
 - Object spec: desired state defined by user
 - Status: current state
 
+K8s works by trying to match the current state with the desired state.
+
 Objects have:
 
 - Labels: non-unique key-value pairs used for identification.
 - Label selectors: used to group objects by their labels.
 
-Namespaces:
+**Namespaces**: mechanims to isolate groups of resources in a single cluster.
 
-- 
+**Pods**:
 
+- Simplest unit in k8s
+- A process running
+- Encapsulates one or more containers
+- We can replicate a Pod to scale it horizontally
+- They are defined with a YAML, similar to the `docker-compose.yaml`.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx:1.7.9
+    ports:
+    - containerPort: 80
+```
+
+**ReplicaSet**: horizontally scaled and identical running pods.
+
+- Also defined in a YAML; we have the number of `replicas` and a Pod `template` definition in it.
+- Creating ReplicaSets directly is not recommended; instead, we should create a **Deployment**, which is a higher level concept that manages ReplicaSets.
+
+```yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: nginx-replicaset
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels: # Pods with this label can be acquired
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx # must match matchLabels
+    spec:
+      containers:
+      - name: web-server
+        image: nginx:1.7.9
+        ports:
+        - containerPort: 80
+```
+
+A **Deployment** is a higher-level object which can handle/update Pods and ReplicaSets:
+
+- We should use it instead of Pod/ReplicaSet definitions.
+- It is suitable for stateless applications.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels: # Pods with this label can be acquired
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx # must match matchLabels
+    spec:
+      containers:
+      - name: web-server
+        image: nginx:1.7.9
+        ports:
+        - containerPort: 80
+```
+
+A **Service** is a logical abstraction for sets of pods which can be accessed with an IP address. It is used because Pods are volatile (i.e., we can destroy and run them as we please), but the Service interface (with its IP) remains for the user/other components of the cluster. Properties:
+
+- They are REST objects
+- They facilitate the access to the Pods
+- They keep track of Pod changes
+- They act as a load balances across the pods
+- They are assigned a unique IP address
+- They support multiple protocols: TCP, UDP
+- They suppor multiple ports
+- They can map incoming ports to a tergtPort
+
+![Kubernetes Service](./pics/kubernetes_service.jpg)
+
+There are four **types of services**:
+
+- **ClusterIP**
+  - Default, most common
+  - Service has an IP reachable only within the cluster
+    - Pods within cluster can communicate with Service
+    - Pods outside cluster cannot access Service
+  - We can set the IP in the service definition file
+- **NodePort**
+  - Extension of ClusterIP
+  - It exposes the Service on each node's IP address at a static port
+  - Then, comms are routed to the Service ClusterIP
+  - Not recommended for production, due to security issues
+- **External LoadBalancer (ELB)**
+  - Extension of NodePort
+  - It creates ClusterIPs and NodePorts first
+  - Then, there is a load balancer which is the interface with the outside world
+  - The load balancer routes outside comms to the corresponding NodePorts
+  - Cloud providers have an ELB which can be used to expose our services to the internet
+- **External Name**
+  - DNS name mapped to a Service via the ELB
+  - Used for external storage
+
+Related to a **service**, we have these additional objects:
+
+- **Ingress** is an API object which enables access/routing to Services from outside. Applications are exposed to the Internet on port 80 (HTTP) or 443 (HTTPS).
+  - Difference to ELB: ELB is expensive and managed outside the cluster, while Ingress is cheaper and managed by the cluster.
+- **DeamonSet** is an object which makes sure a Node runs a copy of a Pod, or it garbage-collects them when they are not necessary.
+  - Note that use user adds/removes Pods to/from the cluster, but DeamonSet maps them to the Nodes.
+  - If we delete a DeamonSet, all its Pods are removed.
+  - They are used for monitoring Nodes, storage or logs.
+- **StatefulSet** is an object which manages stateful applications.
+  - It manages the deployment and scaling of pods.
+  - It maintains a *sticky identity* for each Pod
+  - It provides persistent storage volumes
+- **Job** is an object which creates Pods
+  - It tracks the creation process completion
+  - Jobs are retried until completed
+  - Suspeding a job deletes its active Pods
+  - Can run several jobs in parallel
+  - *CronJob*: regular jobs with an iterative schedule
 
 ### 3.3 Kubernetes CLI: `kubectl`
 
+Kube-control = `kubectl` = Kubernetes (k8s) CLI.
 
+```bash
+# kubectl usage pattern/structure: order matters
+kubectl [command] [type] [name] [flags]
+
+# command: operation; create, get, apply, delete
+# type: resource; pod, deployment, replicaset
+# name: resource name, if applicable
+# flags: options, modifiers to override default values
+```
+
+It has 3 command types:
+
+1. Imperative commands: we can create/update/delete objects witha command, but we don't keep track/document the operation (so we lack of reproducibility if the entire command is not saved in a file), and they are limited.
+
+    kubectl run nginx --image nginx
+
+2. Imperative object configuration: we specify the operation and its flags in the command, but the objects configuration in a YAML config file passed to the command. We can save in a git repo the config file, so the reproducibility is better.
+
+    kubectl create -f nginx.yaml
+
+3. Declarative object configuration: in this option, the operations and their options are also in a YAML. So, everything is in a YAML. This is the best option: we define a desired state and k8s actualizes it.
+
+    kubectl apply -f nginx/
+
+#### Common Commads
+
+```bash
+kubectl version 	# Prints the client and server version information. 
+
+kubectl run 	# Creates and runs a particular image in a pod.
+
+kubectl get 	# Displays resources.
+kubectl get services 	# Lists the services created.
+kubectl get pods 	# Lists all the Pods in the current namespace
+kubectl get pods -o wide 	# Lists all the Pods with details.
+kubectl get pods --all-namespaces	# Lists all the Pods.
+
+kubectl apply  # Applies a configuration to a resource.
+kubectl apply -f ./my1.yaml -f ./my2.yaml
+kubectl apply -f https://git.io/vPieo
+
+kubectl scale --replicas=3 rs/foo # scale
+kubectl scale --replicas=3 -f foo.yaml
+
+kubectl get deployments 	# Lists the deployments created.
+
+kubectl config get-clusters 	# Displays clusters defined in the kubeconfig.
+kubectl config get-contexts 	# Displays the current context.
+kubectl create 	# Creates a resource.
+kubectl delete 	# Deletes resources.
+kubectl describe 	# Shows details of a resource or group of resources.
+kubectl expose 	# Exposes a resource to the internet as a Kubernetes service.
+kubectl proxy 	# Creates a proxy server between a localhost and the Kubernetes API server.
+```
 
 ### 3.4 Exercises
+
+An environment is generated with a Terminal.
+
+The working directory contains ...
+
+I have replicated the folder in [`lab/02_IntroKubernetes/`](./lab/02_IntroKubernetes/), so the exercise can be carried out locally instead of using the provided environment. Also, note that [`IBM_Cloud_Notes.md`](https://github.com/mxagar/computer_vision_udacity/blob/main/02_Cloud_Computing/IBM_Cloud_Notes.md) explains how to set up an IBM Cloud account.
+
+
+
 
 
