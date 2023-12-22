@@ -2,6 +2,8 @@
 
 These are my personal notes of the [IBM DevOps and Software Engineering Professional Certificate](https://www.coursera.org/professional-certificates/devops-and-software-engineering) from Coursera.
 
+:warning: **UPDATE: I decided to stop this specialization because I am familiar with most of its contents. Thus, only the course on Kubernetes is contained in this repository.**
+
 The specialization is composed by 14 courses:
 
 1. Introduction to DevOps
