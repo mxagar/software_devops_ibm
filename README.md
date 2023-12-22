@@ -23,5 +23,13 @@ The specialization is composed by 14 courses:
 
 For similar guides of mine, visit [course_compilation](https://github.com/mxagar/course_compilation).
 
+## Interesting Links
+
+- [Software Development Process](https://www.udacity.com/course/software-development-process--ud805)
+- [Software Architecture & Design](https://www.udacity.com/course/software-architecture-design--ud821)
+- [Software Analysis & Testing](https://www.udacity.com/course/software-analysis-testing--ud333)
+
+## Authorship
+
 Mikel Sagardia, 2023.  
 No guarantees.
