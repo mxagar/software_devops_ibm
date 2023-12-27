@@ -12,7 +12,7 @@ The specialization is composed by 14 courses:
 4. Hands-on Introduction to Linux Commands and Shell Scripting
 5. Getting Started with Git and GitHub
 6. Python for Data Science, AI & Development
-7. Python Project for AI & Application Development
+7. Developing AI Applications with Python and Flask
 8. [Introduction to Containers w/ Docker, Kubernetes & OpenShift](https://www.coursera.org/learn/ibm-containers-docker-kubernetes-openshift?specialization=devops-and-software-engineering)
 9. Application Development using Microservices and Serverless
 10. Introduction to Test Driven Development (TDD)
