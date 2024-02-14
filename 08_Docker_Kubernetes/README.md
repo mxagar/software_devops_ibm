@@ -37,6 +37,7 @@ Table of contents:
       - [Create a Pod with Imperative Object Configuration](#create-a-pod-with-imperative-object-configuration)
       - [Create a Pod with a Declarative Command](#create-a-pod-with-a-declarative-command)
       - [Load Balancing the Application](#load-balancing-the-application)
+  - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
 
@@ -853,4 +854,16 @@ kubectl delete deployment/hello-world service/hello-world
 
 # Close the proxy with Ctrl+C
 # in the second Terminal
+```
+
+## Extra: Kubernetes Tips
+
+Which is the configuration of a pod in a cluster? (e.g., memory, etc.)
+
+```bash
+# Get all pods in the cluster: pick the pod name you want to look into
+kubectl --kubeconfig k8s/config --namespace your-env get pods
+
+# Get infos of that pod
+kubectl --kubeconfig k8s/config --namespace your-env describe pod pod-name-xxx
 ```
