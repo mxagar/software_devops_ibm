@@ -867,3 +867,4 @@ kubectl --kubeconfig k8s/config --namespace your-env get pods
 # Get infos of that pod
 kubectl --kubeconfig k8s/config --namespace your-env describe pod pod-name-xxx
 ```
+
