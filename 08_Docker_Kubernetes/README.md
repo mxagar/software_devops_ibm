@@ -42,6 +42,8 @@ Table of contents:
     - [4.2 Autoscaling](#42-autoscaling)
     - [4.3 Deployment Strategies](#43-deployment-strategies)
     - [4.4 Rolling Updates](#44-rolling-updates)
+    - [4.5 ConfigMaps and Secrets](#45-configmaps-and-secrets)
+      - [Secrets](#secrets)
   - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
@@ -1094,9 +1096,74 @@ Following the patterns introduced in the Deployment Strategies, we have differen
 
 ![Once-at-a-time Rollout](./pics/once_at_a_time_rollout.jpg)
 
+### 4.5 ConfigMaps and Secrets
 
+Configuration parameters should not be hard-coded. ConfigMap is an API which stores key-value pairs of non-confidential/secret configuration data (limited to 1 MB):
 
+- It is visible to all the objects.
+- It is reusable across deployments.
+- We can create it in varios forms: inserting string literals to `kubectl` commands, providing key-value pairs, witha YAML file, etc.
 
+Example: String literal:
+
+```bash
+# Here we are creteing a my-config object of type ConfigMap
+# and it has a key-value pair: MESSAGE="Hello"
+kubectl create ConfigMap my-config --from-literal=MESSAGE="Hello"
+```
+
+Once the ConfigMap is created, we need to reference it in the YAML:
+
+```yaml
+env:
+- name: MESSAGE
+  valueFrom:
+    configMapKeyRef:
+      name: my-config
+      key: MESSAGE
+```
+
+Example: File with key-value pairs:
+
+```bash
+# Here we are creteing a my-config object of type ConfigMap
+# and it is sourced from config.txt, contains lines in the form <key>=<value> 
+kubectl create ConfigMap my-config --from-file=config.txt
+
+# Show contents of my-config ConfigMap
+kubectl describe ConfigMap my-config
+```
+
+It is also possible to do it with YAML file which follows the k8s format.
+
+#### Secrets
+
+In contrast to ConfigMaps, Secrets are encrypted. We operate with them in a similar manner:
+
+```bash
+# Create secret from string literal: secret name = api-creds
+kubectl create secret generic api-creds --from-literal=key=mypassword
+
+# Show secret - content is not displayed, only the name: api-creds
+kubectl get secret
+kubectl describe secret api-creds
+
+# Output (encrypted) secret
+kubectl get secret api-creds -o YAML
+```
+
+To use the secret, we need to reference it:
+
+```yaml
+env:
+- name: API_CREDS
+  valueFrom:
+    secretKeyRef:
+      name: api-creds
+      key: key
+```
+
+We can also load teh secrets with volume-mounts.
 
 ## Extra: Kubernetes Tips
 
