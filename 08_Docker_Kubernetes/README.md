@@ -44,6 +44,9 @@ Table of contents:
     - [4.4 Rolling Updates](#44-rolling-updates)
     - [4.5 ConfigMaps and Secrets](#45-configmaps-and-secrets)
       - [Secrets](#secrets)
+    - [4.6 Service Binding](#46-service-binding)
+    - [4.7 Summary of Commands to Manage Kubernetes Clusters](#47-summary-of-commands-to-manage-kubernetes-clusters)
+    - [4.8 Exercises](#48-exercises)
   - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
@@ -814,7 +817,6 @@ kubectl delete pod <pod_name> && kubectl get pods
 kubectl get pods
 ```
 
-
 #### Load Balancing the Application
 
 This exercise continues where the previous ended.
@@ -1164,6 +1166,35 @@ env:
 ```
 
 We can also load teh secrets with volume-mounts.
+
+### 4.6 Service Binding
+
+Service binding: we can consume external services or backing services:
+
+- Configuration and credentials are managed.
+- Credentials are available to the users via secrets.
+- Consumption is done binding the application to a deployment.
+
+![Service Binding](./pics/sevice_binding.jpg)
+
+### 4.7 Summary of Commands to Manage Kubernetes Clusters
+
+```bash
+kubectl autoscale deployment 	# Autoscales a Kubernetes Deployment.
+kubectl create configmap 	# Creates a ConfigMap resource.
+kubectl get deployments -o wide 	# Lists deployments with details.
+kubectl get hpa 	# Lists Horizontal Pod Autoscalers (hpa)
+kubectl scale deployment 	# Scales a deployment.
+kubectl set image deployment 	# Updates the current deployment.
+kubectl rollout 	# Manages the rollout of a resource.
+kubectl rollout restart 	# Restarts the resource so that the containers restart.
+kubectl rollout undo 	# Rollbacks the resource. 
+```
+
+### 4.8 Exercises
+
+
+
 
 ## Extra: Kubernetes Tips
 
