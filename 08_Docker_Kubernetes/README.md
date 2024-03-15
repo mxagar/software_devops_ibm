@@ -37,6 +37,9 @@ Table of contents:
       - [Create a Pod with Imperative Object Configuration](#create-a-pod-with-imperative-object-configuration)
       - [Create a Pod with a Declarative Command](#create-a-pod-with-a-declarative-command)
       - [Load Balancing the Application](#load-balancing-the-application)
+  - [4. Managing Applications with Kubernetes](#4-managing-applications-with-kubernetes)
+    - [4.1 ReplicaSet](#41-replicaset)
+    - [4.2 Autoscaling](#42-autoscaling)
   - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
@@ -329,7 +332,7 @@ Container orchestration is needed when we have several containers to build one a
 - Management
   - System parameters are controlled
   - File parameters too
-- Scaling and load balancng
+- Scaling and load balancing
 - Networking: secure
 - Availability is assured
 - Rolling updates or roll backs
@@ -345,7 +348,7 @@ Kubernetes **is not**
 Important Kubernetes concepts:
 
 - Pods and workloads: smallest deployable compute object and the higher-level abstractions to run workloads.
-- Services: applications running on sets of Pods.
+- Services: applications running on sets of Pods.
 - Storage: persistent and temporary storage for pods.
 - Configuration: pod configuration.
 - Security: for pod and API access.
@@ -380,7 +383,7 @@ From the images:
 - Pods: are run in nodes; a pod is the smallest deployment entity and can contain several containers.
 - Containers share the resources of the node and can communicate among themselves.
 - `Kubelet`: it is a process running on each node which communicates with the `kube-api-server`; it ensures that the pods are running.
-- Container runtime = Docker: it downloads the images and runs the containers. Usually Docker is employedm but there are others, too.
+- Container runtime = Docker: it downloads the images and runs the containers. Usually Docker is employed but there are other options, too.
 - `Kube-proxy`: it handles comms between pods, from within or outside.
 
 ### 3.2 Kubernetes Objects
@@ -562,7 +565,7 @@ kubectl [command] [type] [name] [flags]
 
 It has 3 command types:
 
-1. Imperative commands: we can create/update/delete objects witha command, but we don't keep track/document the operation (so we lack of reproducibility if the entire command is not saved in a file), and they are limited.
+1. Imperative commands: we can create/update/delete objects with a command, but we don't keep track/document the operation (so we lack of reproducibility if the entire command is not saved in a file), and they are limited.
 
     kubectl run nginx --image nginx
 
@@ -855,6 +858,138 @@ kubectl delete deployment/hello-world service/hello-world
 # Close the proxy with Ctrl+C
 # in the second Terminal
 ```
+
+## 4. Managing Applications with Kubernetes
+
+### 4.1 ReplicaSet
+
+ReplicaSets are Pod sets; in contrast to a ReplicaSet a single Pod **cannot**:
+
+- Accomodate growing demans
+- Handle outages
+- Minimize downtime (with redundant executions)
+- Auto restart on interruptions
+
+A ReplicaSet:
+
+- Add or deletes Pods for scaling or redundancy
+- Replaces failing Pods or deletes additional Pods to maintain the desired state
+- Should be used instead of a ReplicaController (older)
+
+Notes:
+
+- A ReplicaSet is best managed by a Deployment, i.e., we launch a Deployment, which creates ReplicaSets automatically, which contain Pods.
+- A ReplicaSet doesn't own the Pods, it uses Pod labels to decide which Pods ti acquire to bring a deployment to a desired state. **In general, in Kubernetes objects are independent, not owned by other objects.**
+
+Example: `hello-kubernetes.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-kubernetes
+spec:
+  selector:
+    matchLabels: # Pods with this label can be acquired
+      app: hello-kubernetes
+  template: # Label of pod candiates to add/delete
+    metadata:
+      labels:
+        app: hello-kubernetes # must match matchLabels
+    spec:
+      containers:
+      - name: hello-kubernetes
+        image: username/hello-kubernetes:1.5
+        ports:
+        - containerPort: 8080
+```
+
+If we start the deployment above:
+
+```bash
+# Declarative deployment
+kubectl apply -f hello-kubernetes.yam
+
+# Deployment: hello-kubernetes
+kubectl get deployment
+
+# ReplicaSet: hello-kubernetes-xxx
+# In contrast to the Deployments, ReplicaSets and Pods have a number ending 
+# ReplicaSet: <deployment>-xxx
+# Pod: <deployment>-xxx-yyy
+kubectl get replicaset # also: get rs
+
+# Pod: hello-kubernetes-xxx-yyy
+kubectl get pods
+```
+
+We could also deploy a ReplicaSet, but it's better to deploy a Deployment:
+
+```yaml
+apiVersion: apps/v1
+kind: ReplicaSet # <- ReplicaSet
+metadata:
+  name: hello-kubernetes
+spec:
+  replicas: 1 # <- Number of Pods we want
+  selector:
+    matchLabels:
+      app: hello-kubernetes
+...
+```
+
+If we deploy a Deployment with a ReplicaSet inside, we can scale it in manually:
+
+```bash
+# Deploy: hello-kubernetes
+kubectl create -f hello-kubernetes.yaml
+
+# We see one pod: hello-kubernetes-xxx-yyy
+# In contrast to the Deployments, ReplicaSets and Pods have a number ending 
+# ReplicaSet: <deployment>-xxx
+# Pod: <deployment>-xxx-yyy
+kubectl get pods
+
+# Info of the deployment
+kubectl get deploy
+
+# Scale: 3 Pods
+# With this command we change the desired state
+kubectl scale deploy hello-kubernetes --replicas=3
+
+# Check we have 3 Pods: hello-kubernetes-xxx-yyy
+kubectl get pods
+
+# We can delete one Pod: hello-kubernetes-xxx-yyy
+# Since the desired states is of 3 Pods, another one will be generated automatically
+kubectl delete pod hello-kubernetes-xxx
+
+# Check we have indeed 3 Pods: hello-kubernetes-xxx-yyy
+kubectl get pods
+
+# Similarly, if we create a Pod, it is deleted to match the desired state of 3!
+kubectl create pod hello-kubernetes-xxx-yyy
+
+# Check we have indeed 3 Pods: hello-kubernetes-xxx-yyy
+kubectl get pods
+```
+
+### 4.2 Autoscaling
+
+In the previous section we either decined the number of Pods or manually scaled them; however, it's better to scale as needed! Kubernetes allows autoscaling at two layers:
+
+- Cluster/node level
+- Pod level
+
+Three types of autoscalers are available:
+
+- Horizontal Pod Autoscaler (HPA)
+- Vertical Pod Autoscaler (VPA)
+- Cluster Autoscaler (CA)
+
+
+
+
 
 ## Extra: Kubernetes Tips
 
