@@ -40,6 +40,8 @@ Table of contents:
   - [4. Managing Applications with Kubernetes](#4-managing-applications-with-kubernetes)
     - [4.1 ReplicaSet](#41-replicaset)
     - [4.2 Autoscaling](#42-autoscaling)
+    - [4.3 Deployment Strategies](#43-deployment-strategies)
+    - [4.4 Rolling Updates](#44-rolling-updates)
   - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
@@ -1000,6 +1002,99 @@ kubectl autoscale deploy hello-kubernetes --min=2 --max=5 --cpu-percent=50
 # Get specs for the HPA: minpods, maxpods, etc.
 kubectl get hpa
 ```
+
+### 4.3 Deployment Strategies
+
+A deployment strategy defines:
+
+- how to deploy ReplicaSets, Pods, etc.
+- when to pause/resume Deployments
+- when and how scale Deployments.
+
+We have these types of Deployment Strategies:
+
+1. **Recreate Strategy**: when the app is terminated and a new version of the app is deployed.
+    - It's the simplest.
+    - There's a downtime.
+
+2. **Rolling (ramped) Strategy**: each Pod is updated one at a time, i.e., every single v1 Pod is terminated and replaced by a v2 sequentially.
+    - No downtime.
+
+3. **Blue/Green Strategy**: we have two live versions v1 and v2 of the application (in two different environments) and the load balancer switches the traffic to v2 when it passes all the tests.
+    - Instantaneous, no downtime.
+    - Expensive: it requires double the resources.
+
+    ![Blue/Green Deployment](./pics/blue_green.png)
+
+4. **Canary Strategy**: the new version v2 is tested by a subset of users; when successful, it is rolled out to all users.
+    - More complex, gradual.
+    - No downtime.
+
+    ![Canary Deployment](./pics/canary.png)
+
+5. **A/B Testing Strategy**: used to evaluate two versions of an application; a subset of the users is randomly redirected to v1, whereas the rest to v2. Pre-defined metrics are measured.
+    - Requires a specific load balancer.
+
+    ![A/B Testing Deployment](./pics/ab_testing.png)
+
+6. **Shadow Strategy**: two versions are deployed, a live model and a *shadow* model; the difference is that the *shadow* model doesn't send back the responses to the user. The idea is to measure the app performance without interrupting the user experience.
+    - Complex.
+    - ??
+
+    ![Shadow Deployment](./pics/shadow.png)
+
+### 4.4 Rolling Updates
+
+Rolling updates = automated updates that occur on a schedules basis.
+
+We distinguish:
+
+- Roll out: a new version is deployed.
+- Roll back: the new version is removed and the old re-deployed.
+
+We can specify how to perform the rolling updates in the YAML file, i.e., any parameters we want.
+
+Practical, simple example of how to **roll out** anew version:
+
+```bash
+# 3 Pods: hello-kubernetes-xxx-yyy
+kubectl get pods
+
+# Now, a new version of the code is committed
+# Thus, we need to create a new tagged image
+docker build -t hello-kubernetes .
+dcoker tag hello-kubernetes username/hello-kubernetes:2.0
+docker push username/hello-kubernetes:2.0
+
+# Check the deployment: hello-kubernetes
+kubectl get deployments
+
+# Roll out: Set the new image tag
+# 3 new pods will be rolled out
+kubectl set image deployments/hello-kubernetes hello-kubernetes=username/hello-kubernetes:2.0
+
+# Check the rollout: we should get "successfully rolled out"
+kubectl rollout status deployments/hello-kubernetes
+
+# Roll back if something is wrong
+kubectl rollout undo deployments/hello-kubernetes
+
+# Check Pods: we should see
+kubectl get pods
+```
+
+Following the patterns introduced in the Deployment Strategies, we have different roll oy/back scenarios:
+
+1. All-at-once rollout: all v1 objects removed and v2 objects become active; example above. There is a lag while terminating v1 and until v2 is up.
+2. All-at-once rollback: equivalent to the previous, but v1 is re-deployed.
+3. Once-at-a-time rollout: v1 Pods are replaced one by one by v2 Pods. There is no lag, no downtime/interruption.
+4. Once-at-a-time rollback: equivalent to the previous, but v1 is re-deployed one by one.
+
+![All-at-once Rollout](./pics/all_at_once_rollout.jpg)
+
+![Once-at-a-time Rollout](./pics/once_at_a_time_rollout.jpg)
+
+
 
 
 
