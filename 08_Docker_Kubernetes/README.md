@@ -976,18 +976,30 @@ kubectl get pods
 
 ### 4.2 Autoscaling
 
-In the previous section we either decined the number of Pods or manually scaled them; however, it's better to scale as needed! Kubernetes allows autoscaling at two layers:
+In the previous section we either decined the number of Pods or manually scaled them; however, it's better to scale as needed! Kubernetes allows autoscaling at two layers: (1) Cluster/node level and (2) Pod level, which means in practice that we have three types of autoscalers available:
 
-- Cluster/node level
-- Pod level
+- Horizontal Pod Autoscaler (HPA): increase/decrease the number of Pods
+- Vertical Pod Autoscaler (VPA): inrease/decrease resource size (RAM) or speed of the Pods (CPU)
+- Cluster Autoscaler (CA): adjust number of nodes (VMs), where Pods are added/removed
 
-Three types of autoscalers are available:
+A typical use-case/scenario is an application which is differently consumed during the day, depending on whether people are working, eating, sleeping. Usually, a combination of the three is used.
 
-- Horizontal Pod Autoscaler (HPA)
-- Vertical Pod Autoscaler (VPA)
-- Cluster Autoscaler (CA)
+Examples: 
 
+```bash
+# hello-kubernetes-xxx-yyy
+kubectl get pods
 
+# hello-kubernetes-xxx
+kubectl get rs
+
+# Autoscaling: minimum Pods 2, max 5, when CPU usage passes 50%, add/delete Pod
+# We can also specify that in the specs of the YAML
+kubectl autoscale deploy hello-kubernetes --min=2 --max=5 --cpu-percent=50
+
+# Get specs for the HPA: minpods, maxpods, etc.
+kubectl get hpa
+```
 
 
 
