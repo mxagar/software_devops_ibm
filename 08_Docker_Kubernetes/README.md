@@ -47,6 +47,7 @@ Table of contents:
     - [4.6 Service Binding](#46-service-binding)
     - [4.7 Summary of Commands to Manage Kubernetes Clusters](#47-summary-of-commands-to-manage-kubernetes-clusters)
     - [4.8 Exercises](#48-exercises)
+      - [A](#a)
   - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
@@ -627,7 +628,7 @@ The working directory contains the same simple Node.js application that we will 
 - `hello-world-create.yaml`: YAML for imperative configuration command.
 - `hello-world-apply.yaml`: YAML for declarative configuration command.
 
-I have replicated the folder in [`lab/02_IntroKubernetes/`](./lab/02_IntroKubernetes/), so the exercise can be carried out locally instead of using the provided environment. However, in the environment we have already a cluster set up
+I have replicated the folder in [`lab/02_IntroKubernetes/`](./lab/02_IntroKubernetes/), so the exercise can be carried out locally instead of using the provided environment. However, in the environment we have already a cluster set up.
 
 Also, note that [`IBM_Cloud_Notes.md`](https://github.com/mxagar/computer_vision_udacity/blob/main/02_Cloud_Computing/IBM_Cloud_Notes.md) explains how to set up an IBM Cloud account.
 
@@ -1193,8 +1194,136 @@ kubectl rollout undo 	# Rollbacks the resource.
 
 ### 4.8 Exercises
 
+An environment is generated with a Terminal.
 
+The working directory contains the same simple Node.js application that prints a hello message along with the hostname as in the previous exercises. The following files are needed:
 
+- `app.js` is the main application, which simply replies with a hello world message.
+- `package.json` defines the dependencies of the application.
+- `Dockerfile` defines the instructions Docker uses to build the image.
+- `deployment.yaml`: YAML for 
+- `deployment-configmap-env-var.yaml`: YAML for 
+
+I have replicated the folder in [`lab/03_K8sScaleAndUpdate/`](./lab/03_K8sScaleAndUpdate/), so the exercise can be carried out locally instead of using the provided environment. However, in the environment we have already a cluster set up.
+
+Also, note that [`IBM_Cloud_Notes.md`](https://github.com/mxagar/computer_vision_udacity/blob/main/02_Cloud_Computing/IBM_Cloud_Notes.md) explains how to set up an IBM Cloud account.
+
+Objectives:
+
+> - Scale an application with a ReplicaSet
+> - Apply rolling updates to an application
+> - Use a ConfigMap to store application configuration
+> - Autoscale the application using Horizontal Pod Autoscaler
+
+To recap, here are the contents of the `Dockerfile` and the `app.js`:
+
+```Dockerfile
+FROM node:9.4.0-alpine
+COPY app.js .
+COPY package.json .
+RUN npm install &&\
+    apk update &&\
+    apk upgrade
+EXPOSE  8080
+CMD node app.js
+```
+
+```javascript
+var express = require('express')
+var os = require("os");
+var hostname = os.hostname();
+var app = express()
+
+app.get('/', function(req, res) {
+  res.send('Hello world from ' + hostname + '! Your app is up and running!\n')
+})
+app.listen(8080, function() {
+  console.log('Sample app is listening on port 8080.')
+})
+```
+
+Additionally, here are the contents of the YAML files:
+
+`deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world
+spec:
+  selector:
+    matchLabels:
+      run: hello-world
+  template:
+    metadata:
+      labels:
+        run: hello-world
+    spec:
+      containers:
+      - name: hello-world
+        # <my_namespace> needs to be changed
+        image: us.icr.io/<my_namespace>/hello-world:1
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 2m
+            memory: 30Mi
+          requests:
+            cpu: 1m
+            memory: 10Mi  
+        
+      imagePullSecrets:
+        - name: icr
+
+```
+
+`deployment-configmap-env-var.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world
+spec:
+  selector:
+    matchLabels:
+      run: hello-world
+  template:
+    metadata:
+      labels:
+        run: hello-world
+    spec:
+      containers:
+      - name: hello-world
+        # <my_namespace> needs to be changed
+        image: us.icr.io/<my_namespace>/hello-world:3
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: app-config
+      imagePullSecrets:
+        - name: icr
+```
+
+#### A
+
+```bash
+# Open an Terminal and clone repo
+cd /home/project
+[ ! -d 'CC201' ] && git clone https://github.com/ibm-developer-skills-network/CC201.git
+ls # CC201
+cd CC201/labs/3_K8sScaleAndUpdate/
+ls # files above
+
+# Set environment variable to be used in the YAMLs
+export MY_NAMESPACE=sn-labs-$USERNAME
+
+# Build and push image
+docker build -t us.icr.io/$MY_NAMESPACE/hello-world:1 . && docker push us.icr.io/$MY_NAMESPACE/hello-world:1
+```
 
 ## Extra: Kubernetes Tips
 

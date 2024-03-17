@@ -13,6 +13,7 @@ spec:
     spec:
       containers:
       - name: hello-world
+        # <my_namespace> needs to be changed
         image: us.icr.io/<my_namespace>/hello-world:1
         ports:
         - containerPort: 8080
