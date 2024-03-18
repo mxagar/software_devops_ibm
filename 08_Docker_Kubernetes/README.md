@@ -1367,6 +1367,8 @@ curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/
 
 #### Scale Service
 
+Note: the `kubectl proxy` should be running on a second terminal.
+
 ```bash
 # Scale up to 3 replicas
 kubectl scale deployment hello-world --replicas=3
@@ -1411,6 +1413,8 @@ kubectl get pods
 
 In this exercise, the *Welcome string* in `app.js` file is slightly changed and we roll an update.
 
+Note: the `kubectl proxy` should be running on a second terminal.
+
 ```bash
 # Change line in app.js
 # "Hello..." <-> "Welcome..."
@@ -1449,6 +1453,8 @@ kubectl get deployments -o wide
 
 > ConfigMaps and Secrets are used to store configuration information separate from the code so that nothing is hardcoded. It also lets the application pick up configuration changes without needing to be redeployed.
 > To demonstrate this, we'll store the application's message in a ConfigMap so that the message can be updated simply by updating the ConfigMap.
+
+Note: the `kubectl proxy` should be running on a second terminal.
 
 ```bash
 # Create a ConfigMap that contains a new message
@@ -1489,7 +1495,74 @@ curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/
 
 #### Autoscale the Application Using Horizontal Pod Autoscaler (HPA)
 
+In this section, a new version is prepared for `deployment.yaml`, i.e., `deployment_v2.yaml`:
 
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world
+spec:
+  selector:
+    matchLabels:
+      run: hello-world
+  template:
+    metadata:
+      labels:
+        run: hello-world
+    spec:
+      containers:
+      - name: hello-world
+        # <my_namespace> needs to be changed
+        image: us.icr.io/<my_namespace>/hello-world:1
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          limits:
+            cpu: 50m
+          requests:
+            cpu: 20m        
+      imagePullSecrets:
+        - name: icr
+
+```
+
+In the new version, the specs of the container are different.
+
+Note: the `kubectl proxy` should be running on a second terminal.
+
+Then, we apply the deployment:
+
+```bash
+# Deploy
+kubectl apply -f deployment_v2.yaml
+
+# Autoscale the hello-world deployment
+kubectl autoscale deployment hello-world --cpu-percent=5 --min=1 --max=10
+
+# Check
+kubectl get hpa hello-world
+# NAME          REFERENCE                TARGETS        MINPODS   MAXPODS   REPLICAS   AGE
+# hello-world   Deployment/hello-world   <unknown>/5%   1         10        1          21s
+
+# Use the app: we spam it and are expected to get more Pod instances (autoscaling)
+for i in `seq 100000`; do curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/proxy; done
+
+# In another terminal
+kubectl get hpa hello-world --watch
+# NAME          REFERENCE                TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+# hello-world   Deployment/hello-world   40%/5%    1         10        3          3m48s
+# hello-world   Deployment/hello-world   45%/5%    1         10        6          4m1s
+# hello-world   Deployment/hello-world   40%/5%    1         10        9          4m16s
+# hello-world   Deployment/hello-world   18%/5%    1         10        9          4m31s
+
+# Delete deployment
+kubectl delete deployment hello-world
+
+# Delete service
+kubectl delete service hello-world
+```
 
 ## Extra: Kubernetes Tips
 
