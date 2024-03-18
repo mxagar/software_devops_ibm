@@ -47,7 +47,12 @@ Table of contents:
     - [4.6 Service Binding](#46-service-binding)
     - [4.7 Summary of Commands to Manage Kubernetes Clusters](#47-summary-of-commands-to-manage-kubernetes-clusters)
     - [4.8 Exercises](#48-exercises)
-      - [A](#a)
+      - [Set Up](#set-up)
+      - [Deploy Service](#deploy-service)
+      - [Scale Service](#scale-service)
+      - [Rolling Updates](#rolling-updates)
+      - [Using a ConfigMap to Store Configuration](#using-a-configmap-to-store-configuration)
+      - [Autoscale the Application Using Horizontal Pod Autoscaler (HPA)](#autoscale-the-application-using-horizontal-pod-autoscaler-hpa)
   - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
@@ -1262,7 +1267,7 @@ spec:
     spec:
       containers:
       - name: hello-world
-        # <my_namespace> needs to be changed
+        # <my_namespace> needs to be changed: sn-labs-mxagar
         image: us.icr.io/<my_namespace>/hello-world:1
         ports:
         - containerPort: 8080
@@ -1279,7 +1284,7 @@ spec:
 
 ```
 
-`deployment-configmap-env-var.yaml`:
+`deployment-configmap-env-var.yaml` (note the reference to the ConfigMap):
 
 ```yaml
 apiVersion: apps/v1
@@ -1297,7 +1302,7 @@ spec:
     spec:
       containers:
       - name: hello-world
-        # <my_namespace> needs to be changed
+        # <my_namespace> needs to be changed: sn-labs-mxagar
         image: us.icr.io/<my_namespace>/hello-world:3
         ports:
         - containerPort: 8080
@@ -1308,7 +1313,7 @@ spec:
         - name: icr
 ```
 
-#### A
+#### Set Up
 
 ```bash
 # Open an Terminal and clone repo
@@ -1324,6 +1329,167 @@ export MY_NAMESPACE=sn-labs-$USERNAME
 # Build and push image
 docker build -t us.icr.io/$MY_NAMESPACE/hello-world:1 . && docker push us.icr.io/$MY_NAMESPACE/hello-world:1
 ```
+
+#### Deploy Service
+
+```bash
+# Fetch variable
+echo $MY_NAMESPACE
+# Change <my_namespace> in both YAMLs to be what we echoed
+
+# Deploy with apply: declarative command, 
+# i.e., we define the desired state to which k8s tries to arrive
+kubectl apply -f deployment.yaml
+
+# Get deployed pods: hello-world-xxx-yyy
+kubectl get pods
+# NAME                           READY   STATUS    RESTARTS   AGE
+# hello-world-7cc4c8bfbd-l8v9w   1/1     Running   0          17s
+
+# Expose app to Internet
+kubectl expose deployment/hello-world
+# service/hello-world exposed
+
+# However, the default ClusterIP services are reachable only inside the cluster
+# To make them externally accessible, we can create a proxy
+# NOTE: This is not how it should be done in production...
+# To that end: WE OPEN A SECOND TERMINAL AND START A PROXY
+# ... and leave it running
+# We don't need to touch this second terminal but for closing everything
+kubectl proxy
+# Starting to serve on 127.0.0.1:8001
+
+# IN THE FIRST TERMINAL
+# We interact with the app/service
+curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/proxy
+# Hello world from hello-world-7cc4c8bfbd-l8v9w! Your app is up and running!
+```
+
+#### Scale Service
+
+```bash
+# Scale up to 3 replicas
+kubectl scale deployment hello-world --replicas=3
+
+# Get pods, check 3  replicas
+kubectl get pods
+# NAME                           READY   STATUS    RESTARTS   AGE
+# hello-world-7cc4c8bfbd-5qz54   1/1     Running   0          18s
+# hello-world-7cc4c8bfbd-jr67k   1/1     Running   0          18s
+# hello-world-7cc4c8bfbd-l8v9w   1/1     Running   0          28m
+
+# Ping app to check load balancer: notice a different Pod is reached every time
+for i in `seq 10`; do curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/proxy; done
+# Hello world from hello-world-7cc4c8bfbd-l8v9w! Your app is up and running!
+# Hello world from hello-world-7cc4c8bfbd-jr67k! Your app is up and running!
+# Hello world from hello-world-7cc4c8bfbd-l8v9w! Your app is up and running!
+# Hello world from hello-world-7cc4c8bfbd-jr67k! Your app is up and running!
+# Hello world from hello-world-7cc4c8bfbd-jr67k! Your app is up and running!
+# Hello world from hello-world-7cc4c8bfbd-l8v9w! Your app is up and running!
+# Hello world from hello-world-7cc4c8bfbd-jr67k! Your app is up and running!
+# Hello world from hello-world-7cc4c8bfbd-l8v9w! Your app is up and running!
+# Hello world from hello-world-7cc4c8bfbd-l8v9w! Your app is up and running!
+# Hello world from hello-world-7cc4c8bfbd-5qz54! Your app is up and running!
+
+# Scale down
+kubectl scale deployment hello-world --replicas=1
+
+# Check
+kubectl get pods
+# NAME                           READY   STATUS        RESTARTS   AGE
+# hello-world-7cc4c8bfbd-5qz54   1/1     Terminating   0          2m49s
+# hello-world-7cc4c8bfbd-jr67k   1/1     Terminating   0          2m49s
+# hello-world-7cc4c8bfbd-l8v9w   1/1     Running       0          31m
+
+# Check again
+kubectl get pods
+# NAME                           READY   STATUS    RESTARTS   AGE
+# hello-world-7cc4c8bfbd-l8v9w   1/1     Running   0          32m
+```
+
+#### Rolling Updates
+
+In this exercise, the *Welcome string* in `app.js` file is slightly changed and we roll an update.
+
+```bash
+# Change line in app.js
+# "Hello..." <-> "Welcome..."
+
+# Build new image version and push it
+docker build -t us.icr.io/$MY_NAMESPACE/hello-world:2 . && docker push us.icr.io/$MY_NAMESPACE/hello-world:2
+
+# List images in the IBM container registry
+ibmcloud cr images
+
+# Set the new image to the deployment: new image is rolled out
+kubectl set image deployment/hello-world hello-world=us.icr.io/$MY_NAMESPACE/hello-world:2
+
+# Get a status of the rolling update
+kubectl rollout status deployment/hello-world
+# deployment "hello-world" successfully rolled out
+
+# Get deployments, -wide: image tag version is shown; check it's 2
+kubectl get deployments -o wide
+# NAME          READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS    IMAGES                                   SELECTOR
+# hello-world   1/1     1            1           22m   hello-world   us.icr.io/sn-labs-mxagar/hello-world:2   run=hello-world
+
+# Ping app
+curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/proxy
+# Hello from hello-world-7f6ccc74ff-ngngt! Your app is up and running!
+
+# Undo the rollout
+kubectl rollout undo deployment/hello-world
+kubectl rollout status deployment/hello-world
+
+# Get deployments, -wide: image tag version is shown; check it's 1
+kubectl get deployments -o wide
+```
+
+#### Using a ConfigMap to Store Configuration
+
+> ConfigMaps and Secrets are used to store configuration information separate from the code so that nothing is hardcoded. It also lets the application pick up configuration changes without needing to be redeployed.
+> To demonstrate this, we'll store the application's message in a ConfigMap so that the message can be updated simply by updating the ConfigMap.
+
+```bash
+# Create a ConfigMap that contains a new message
+kubectl create configmap app-config --from-literal=MESSAGE="This message came from a ConfigMap!"
+```
+
+Now, we need to change `app.js` to use the ConfigMap, which is already referenced in `deployment-configmap-env-var.yaml`:
+
+```javascript
+app.get('/', function(req, res) {
+  //res.send('Hello from ' + hostname + '! Your app is up and running!\n')
+  res.send(process.env.MESSAGE + '\n')
+})
+```
+
+```bash
+# Build & push new image
+docker build -t us.icr.io/$MY_NAMESPACE/hello-world:3 . && docker push us.icr.io/$MY_NAMESPACE/hello-world:3
+
+# Launch new deloyment
+kubectl apply -f deployment-configmap-env-var.yaml
+
+# Ping your application again to see if the message from the environment variable is returned
+curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/proxy
+# This message came from a ConfigMap!
+
+# Because the configuration is separate from the code, the message can be changed without rebuilding the image
+kubectl delete configmap app-config && kubectl create configmap app-config --from-literal=MESSAGE="This message is different, and you didn't have to rebuild the image!"
+
+# Restart the Deployment so that the containers restart.
+# This is necessary since the environment variables are set at start time.
+kubectl rollout restart deployment hello-world
+
+# Ping your application again to see if the new message from the environment variable is returned
+curl -L localhost:8001/api/v1/namespaces/sn-labs-$USERNAME/services/hello-world/proxy
+# This message is different, and you didn't have to rebuild the image!
+```
+
+#### Autoscale the Application Using Horizontal Pod Autoscaler (HPA)
+
+
 
 ## Extra: Kubernetes Tips
 
