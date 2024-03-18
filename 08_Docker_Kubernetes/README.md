@@ -53,6 +53,11 @@ Table of contents:
       - [Rolling Updates](#rolling-updates)
       - [Using a ConfigMap to Store Configuration](#using-a-configmap-to-store-configuration)
       - [Autoscale the Application Using Horizontal Pod Autoscaler (HPA)](#autoscale-the-application-using-horizontal-pod-autoscaler-hpa)
+  - [5. The Kubernetes Ecosystem: Red Hat OpenShift](#5-the-kubernetes-ecosystem-red-hat-openshift)
+    - [5.1 Builds](#51-builds)
+    - [5.2 Operators](#52-operators)
+    - [5.3 Istio](#53-istio)
+    - [5.4 Exercises: Open Shift](#54-exercises-open-shift)
   - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
@@ -1563,6 +1568,95 @@ kubectl delete deployment hello-world
 # Delete service
 kubectl delete service hello-world
 ```
+
+## 5. The Kubernetes Ecosystem: Red Hat OpenShift
+
+Open Shift is a proprietary platform from Red Hat, which now belongs to IBM.
+
+Open Shift is
+
+> an enterprise-ready Kubernetes container platform built for an open hybrid cloud strategy.
+
+So, I would say it is **a layer on top of Kubernetes which makes cloud clusters more manageable and easier to use.**
+
+![Open Shift Features](./pics/open_shift_features.jpg)
+
+![Open Shift vs. Kubernetes](./pics/open_shift_vs_kubernetes.jpg)
+
+Open Shift Platform Architecture:
+
+- It runs on top of a Kubernetes cluster
+- Object data stored in the etcd key-value store.
+- It has a microservices-based architecture.
+- Docker containers are used.
+- Features that provides Open Shift in cmparison to Kubernetes:
+  - Soure code management: builds, deployment
+  - Image management
+  - Application management
+  - Networking infrastructure
+- It has a CLI: `oc`; additionally, `kubectl` can be used, too, but `oc` is supposed to have more functionalities and to be easier.
+
+### 5.1 Builds
+
+In a build we transform code into an executable object, e.g., `Source Code -> Container Image`. We need a **`BuildConfig`** file, which defines input sources and a build strategy:
+
+- Common build strategies:
+  - Source to image: S2I; reproducible container images are built by injecting app code into images without the need of Dockerfiles.
+  - Docker: we need a Dockerfile + artifacts; it invokes `docker build & push` automatically, so it's semi-automated.
+  - Custom: regular Dockerfiles and Doker pipeline, which needs to be defined manually; that would be the traditional way. It offers the largest flexibility (e.g., for CI/CD) but is available only to cluster administrators.
+- Input sources can be combined (in order of overwriting precedence):
+  - Inline Docker definitions
+  - Content extracted from images
+  - Git repos
+  - Binary inputs
+  - Input secrets
+  - External artifacts
+
+An **`ImageStream`** is an abstraction for referencing container images within Open Shift:
+
+- A single `ImageStream` can consists of several image tags: latest, dev, test.
+- Images are updated continuously when code is modified.
+- Each tag points to an image in a registry, which can be different for each tag.
+
+We can automate builds using the following **triggers**:
+
+- `Webhook` trigger: send a request to Open Shift Container Platform API endpoint; Github wenhooks can be used.
+- Image change trigger: when a new version of an image is available.
+- Configuration change trigger: build when a new configuration is defined.
+
+### 5.2 Operators
+
+> Operators automate cluster tasks and act as a custom controller to extend the Kubernetes API.
+> Operators run in a Pod; they package, deploy, and manage native apps in Kubernetes, automate other tasks, and ensure all relevant components are included.
+
+![Open Shift Operators](./pics/open_shift_operators.jpg)
+
+**Custom resource definitions (CRD)** store and retrieve objects in the Kubernetes API, extending it and making it more modular and flexible. They can be accessed via `kubectl`. 
+
+**Custom controllers** run in operator Pods and use the CRDs to bring the cluster to a desired state; this is known as the *Operator Pattern*.
+
+![Custom Controllers](./pics/custom_controllers.jpg)
+
+There is a complete **Operator Framework** which makes use of all the introduced constructs.
+
+### 5.3 Istio
+
+Istio is a **service mesh**.
+
+Service mesh = dedicated infrastructure layer for
+
+- Traffic management
+- Security
+- Policy enforcement
+- Observability
+
+Istio is platform-independent, often used in Kubernetes.
+
+![Istio Features](./pics/istio_features.jpg)
+
+### 5.4 Exercises: Open Shift
+
+
 
 ## Extra: Kubernetes Tips
 
