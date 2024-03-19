@@ -68,6 +68,7 @@ Table of contents:
     - [Dockerfile](#dockerfile)
     - [Deploy App](#deploy-app)
     - [Autoscale the Guestbook Application Using Horizontal Pod Autoscaler](#autoscale-the-guestbook-application-using-horizontal-pod-autoscaler)
+    - [Perform Rolling Updates and Rollbacks on the Guestbook Application](#perform-rolling-updates-and-rollbacks-on-the-guestbook-application)
   - [Extra: Summary of Kubernetes Commands](#extra-summary-of-kubernetes-commands)
 
 ## 1. Introduction: Docker Containers
@@ -1930,9 +1931,9 @@ Martin Õunap [posted a solution](https://www.coursera.org/learn/ibm-containers-
     Create kubernetes docker registry secret
         kubectl create secret docker-registry <SECRET_NAME> --docker-server=us.icr.io --docker-username=iamapikey --docker-password=<API_KEY> --docker-email=ibm@ibm.com
         Later, in the deployment.yaml we need to reference the SECRET_NAME
-    Now use that secret in deployment
-        https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#create-a-pod-that-uses-your-secret
-        PS: You need to use secret name what you did use in secret creation
+        Now use that secret in deployment
+            https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#create-a-pod-that-uses-your-secret
+            PS: You need to use secret name what you did use in secret creation
 
 
 ### Dockerfile
@@ -2032,7 +2033,7 @@ spec:
             cpu: 50m
           requests:
             cpu: 20m
-      # Due to the fix, we need to reference the SECRET
+      # Due to the fix, we need to reference the SECRET; replace its value
       imagePullSecrets:
       - name: <SECRET_NAME>
 ```
@@ -2063,7 +2064,38 @@ kubectl autoscale deployment guestbook --cpu-percent=5 --min=1 --max=10
 
 # Check the current status of the newly-made HorizontalPodAutoscaler
 kubectl get hpa guestbook
+# NAME        REFERENCE              TARGETS        MINPODS   MAXPODS   REPLICAS   AGE
+# guestbook   Deployment/guestbook   <unknown>/5%   1         10        0          7s
+
+# Get the app URL from the app web
+export APP_URL=https://mxagar-3000.theiaopenshiftnext-1-labs-prod-theiaopenshift-4-tor01.proxy.cognitiveclass.ai/
+# Load the app with many requests
+kubectl run -i --tty load-generator --rm --image=busybox:1.36.0 --restart=Never -- /bin/sh -c "while sleep 0.01; do wget -q -O- $APP_URL; done"
+# This returns the HTML code of the app all the time
+
+# In a new/another terminal, check the load 
+kubectl get hpa guestbook --watch
+# NAME        REFERENCE              TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+# guestbook   Deployment/guestbook   0%/5%     1         10        1          3m52s
+# guestbook   Deployment/guestbook   20%/5%    1         10        1          4m16s
+# guestbook   Deployment/guestbook   20%/5%    1         10        4          4m31s
+# guestbook   Deployment/guestbook   25%/5%    1         10        4          4m46s
+# guestbook   Deployment/guestbook   25%/5%    1         10        5          5m2s
+# guestbook   Deployment/guestbook   30%/5%    1         10        5          5m17s
+# guestbook   Deployment/guestbook   30%/5%    1         10        6          5m32s
+# guestbook   Deployment/guestbook   45%/5%    1         10        6          5m47s
+# ...
+
+# Interrupt the load command and get the HPA details
+kubectl get hpa guestbook
+# NAME        REFERENCE              TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+# guestbook   Deployment/guestbook   3%/5%     1         10        10         9m29s
+
+# Finally: close the other terminals where load generator and port-forward commands are running
 ```
+
+### Perform Rolling Updates and Rollbacks on the Guestbook Application
+
 
 
 ## Extra: Summary of Kubernetes Commands
