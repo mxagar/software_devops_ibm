@@ -64,7 +64,11 @@ Table of contents:
   - [6. Capstone](#6-capstone)
     - [Evaluation Rubrics](#evaluation-rubrics)
     - [Setup](#setup)
-  - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
+    - [Fix](#fix)
+    - [Dockerfile](#dockerfile)
+    - [Deploy App](#deploy-app)
+    - [Autoscale the Guestbook Application Using Horizontal Pod Autoscaler](#autoscale-the-guestbook-application-using-horizontal-pod-autoscaler)
+  - [Extra: Summary of Kubernetes Commands](#extra-summary-of-kubernetes-commands)
 
 ## 1. Introduction: Docker Containers
 
@@ -1876,11 +1880,193 @@ cd /home/project
 cd guestbook
 ls # LICENSE  README.md  v1  v2
 cd v1/guestbook
+export MY_NAMESPACE=sn-labs-$USERNAME
 ```
 
-[Multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
+### Fix
 
-## Extra: Kubernetes Tips
+At the time I was completing the capstone there was a credential issu when pushing the created image.
+
+Martin Õunap [posted a solution](https://www.coursera.org/learn/ibm-containers-docker-kubernetes-openshift/discussions/forums/mPEdxysGEe2kQwqqRFPELQ/threads/k4QpROVqEe6YmA7AUB4Frw) to it:
+
+    Login to https://cloud.ibm.com
+    Find from catalog "Container Registry"
+        Click start using it
+        Use Dallas location - IMPORTANT to use Dallas, since later services expect it to be there
+        Create namespace
+            Use custom namespace, not the one, what is provisioned for you (it just says it is in use)
+                In my case I created sn-labs-mikel
+                This will be now the MY_NAMESPACE variable
+    Create Access for registry
+        In up menu Manage select Access (IAM)
+        From left select "Service IDs"
+        Create new service
+            NB: Service needs to be named "container-registry"
+        Assign group
+            I assigned group "Public Access"
+            In reality, it does not do anything right now, because we are assigning access through "Access policies"
+            But you can create group and use it instead policies
+        Click to "Assign access"
+            Search for "Container Registry"
+            Resource: all
+            Roles
+                Read
+                Write
+            Create it
+        Now create API key for that service
+            Copy it, you need it in next steps: API_KEY
+    Now in IBM Cloud click to person icon in up right
+        Click to "Login in to CLI and API"
+        Copy IBM cloud CLI: IBM_CLI_PASSCODE
+        This is a one-time-use only password that let's us login in via CLI
+    Paste CLI what you copied to lab terminal
+    Now you can login to "ibmcloud login"
+        ibmcloud login -a https://cloud.ibm.com -u passcode -p <IBM_CLI_PASSCODE>
+            Select US-South if asked (Dallas)
+        If we want to log in again using this method, we need to create a new PW with
+            "Login in to CLI and API"
+    And I used docker login; note that the ICR is in US!
+        docker login -u iamapikey -p <API_KEY> us.icr.io
+    Create kubernetes docker registry secret
+        kubectl create secret docker-registry <SECRET_NAME> --docker-server=us.icr.io --docker-username=iamapikey --docker-password=<API_KEY> --docker-email=ibm@ibm.com
+        Later, in the deployment.yaml we need to reference the SECRET_NAME
+    Now use that secret in deployment
+        https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#create-a-pod-that-uses-your-secret
+        PS: You need to use secret name what you did use in secret creation
+
+
+### Dockerfile
+
+Complete the Dockerfile; note that [multi-stage builds](https://docs.docker.com/build/building/multi-stage/) are used.
+
+```dockerfile
+FROM golang:1.15 as builder
+RUN go get github.com/codegangsta/negroni
+RUN go get github.com/gorilla/mux
+RUN go get github.com/xyproto/simpleredis/v2
+COPY main.go .
+RUN go build main.go
+
+FROM ubuntu:18.04
+# --from=builder specifies that the source of the copy operation is the filesystem of the builder stage
+COPY --from=builder /go/main /app/guestbook
+COPY public/index.html /app/public/index.html
+COPY public/script.js /app/public/script.js
+COPY public/style.css /app/public/style.css
+COPY public/jquery.min.js /app/public/jquery.min.js
+
+WORKDIR /app
+#  Default command to run when the container starts
+CMD ["./guestbook"]
+EXPOSE 3000
+```
+
+Then:
+
+```bash
+## -- FIX 
+# Due to the fix, we need to set some variables
+export MY_NAMESPACE=sn-labs-mikel
+export IBM_CLI_PASSCODE=xxx
+export API_KEY=yyy
+export SECRET_NAME=zzz # we can pick a name of our choice, kube-cr-secret
+
+# Log in
+ibmcloud login -a https://cloud.ibm.com -u passcode -p $IBM_CLI_PASSCODE
+# Select US South, if asked
+docker login -u iamapikey -p $API_KEY us.icr.io 
+
+# Create a secret in Kubernetes for accessing a private Docker registry,
+# like IBM Cloud Container Registry (us.icr.io).
+# This secret allows Kubernetes to authenticate with the registry
+# to pull private images for your deployments
+kubectl create secret docker-registry $SECRET_NAME --docker-server=us.icr.io --docker-username=iamapikey --docker-password=$API_KEY --docker-email=ibm@ibm.com
+
+## -- BUILD IMAGE and PUSH to CONATINER REGISTRY
+
+# Build the guestbook app using the Docker Build
+docker build . -t us.icr.io/$MY_NAMESPACE/guestbook:v1
+ 
+# Push the image to IBM Cloud Container Registry
+docker push us.icr.io/$MY_NAMESPACE/guestbook:v1
+
+# Verify that the image was pushed successfully
+ibmcloud cr images
+```
+
+### Deploy App
+
+Prepare the `deployment.yaml` file:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guestbook
+  labels:
+    app: guestbook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guestbook
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: guestbook
+    spec:
+      containers:
+      - image: us.icr.io/sn-labs-mikel/guestbook:v1
+        imagePullPolicy: Always
+        name: guestbook
+        ports:
+        - containerPort: 3000
+          name: http
+        resources:
+          limits:
+            cpu: 50m
+          requests:
+            cpu: 20m
+      # Due to the fix, we need to reference the SECRET
+      imagePullSecrets:
+      - name: <SECRET_NAME>
+```
+
+```bash
+# Apply the deployment
+kubectl apply -f deployment.yml
+# deployment.apps/guestbook configured
+
+# Check the Pod is running
+kubectl get pods
+# NAME                                     READY   STATUS      RESTARTS   AGE
+# guestbook-6c9cc9f99b-n4phj               1/1     Running     0          27s
+
+# Open a New Terminal and enter the below command to view your application
+kubectl port-forward deployment.apps/guestbook 3000:3000
+```
+
+After that we launch the application as specified in the execise guide, using the port 3000.
+
+![Launch Application](./pics/capstone_exercise_launch_application.PNG)
+
+### Autoscale the Guestbook Application Using Horizontal Pod Autoscaler
+
+```bash
+# Autoscale the Guestbook deployment
+kubectl autoscale deployment guestbook --cpu-percent=5 --min=1 --max=10
+
+# Check the current status of the newly-made HorizontalPodAutoscaler
+kubectl get hpa guestbook
+```
+
+
+## Extra: Summary of Kubernetes Commands
 
 Which is the configuration of a pod in a cluster? (e.g., memory, etc.)
 
