@@ -58,6 +58,10 @@ Table of contents:
     - [5.2 Operators](#52-operators)
     - [5.3 Istio](#53-istio)
     - [5.4 Exercises: Open Shift](#54-exercises-open-shift)
+      - [OpenShift Web UI](#openshift-web-ui)
+      - [Scaling the Application in the Open Shift Web UI](#scaling-the-application-in-the-open-shift-web-ui)
+    - [5.5 Glossary](#55-glossary)
+  - [6. Capstone](#6-capstone)
   - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
@@ -1656,7 +1660,200 @@ Istio is platform-independent, often used in Kubernetes.
 
 ### 5.4 Exercises: Open Shift
 
+Objectives:
 
+> - Use the `oc` CLI (OpenShift command line interface)
+> - Use the OpenShift web console
+> - Build and deploy an application using s2i (‘Source-to-image’ build strategy)
+> - Inspect a BuildConfig and an ImageStream
+> - Autoscale the application
+
+```bash
+# Check version
+oc version
+
+# Clone repo
+cd /home/project
+[ ! -d 'CC201' ] && git clone https://github.com/ibm-developer-skills-network/CC201.git
+
+# OpenShift projects are Kubernetes namespaces with additional administrative functions
+# oc comes with a copy of kubectl, so all the kubectl commands can be run with oc
+oc get pods
+
+# In addition to Kubernetes objects, you can get OpenShift specific objects
+oc get buildconfigs
+# Because we haven't created a BuildConfig yet, this will not return any resources
+
+# View the OpenShift project that is currently in use
+oc project
+```
+
+#### OpenShift Web UI
+
+In this section an Open Shift Web UI is opened.
+
+We'll see that there are two profiles/perspectives: `Administrator` and `Developer`.
+
+We choose the `Developer` profile and navigate in it. The `Developer` profile can be used to create and deploy apps.
+
+![Open Shift Web UI](./pics/open_shift_web_ui.jpg)
+
+Deploy an application in the web console:
+
+- `+Add`
+- Git repository
+  - https://github.com/sclorg/nodejs-ex.git
+  - (Select Node.js builder image)
+  - Create
+- Now, in the Topology section (left menu) we should see the created app: `nodejs-ex-git`; note:
+  - The Github icon
+  - The green check icon: it means the code was built and deployed
+  - The blue arrow outwards: it means the app is reachable from the outside
+  ![Open Shift App Topology](./pics/open_shift_app_topology.jpg)
+- If we click on the Node.js deployment, we see in the Resources panel (it appears from the right):
+  - a Pod that runs the containerized application
+  - a Build that uses the S2I strategy to build the application into a container image
+  - a Service that exposes the application as a network service
+  - and a Route that provides an externally reachable hostname
+  ![Open Shift Deployment Resources](./pics/open_shift_deployment_resources.jpg)
+- In Topology > (choose app Deploymet) > Builds
+  - View logs: observe all the steps: clone repo, Dockerfile, etc.
+  - Details > Owner: BuildConfig YAML can be visualized
+  - Details > Output To: ImageStreamTag is shown
+- In Topology > (choose app Deploymet) > Routes: if we click on the URL, the app opens
+  ![Node.js App UI](./pics/nodejs_app_ui.jpg)
+
+#### Scaling the Application in the Open Shift Web UI
+
+We set up a horizontal pod autoscaler (HPA) so that it can handle any load that comes its way.
+
+We're going to request 3 millicores of CPU and 40 MB of RAM. We’ll limit the containers to 30 millicores and 100 MB.
+
+    Topology view: Click on nodejs-ex-git Deployment
+    Actions > Edit deployment: YAML view
+
+Modify `template.spec.containers.resources` with the following definition and `Save`:
+
+```yaml
+          resources:
+            limits:
+              cpu: 30m
+              memory: 100Mi
+            requests:
+              cpu: 3m
+              memory: 40Mi
+```
+
+Then, in the main web UI, we choose the `Administrator` profile/perspective.
+
+    Workloads > Horizontal Pod Autoscalers
+    Click Create Horizontal Pod Autoscaler
+
+Then we paste the following snippet in the YAML configurator and click on `Create`:
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nodejs-ex-git-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nodejs-ex-git
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 10
+```
+
+> This HPA indicates that we're going to scale based on CPU usage. Generally you want to scale when your CPU utilization is in the 50-90% range. For this example, we're going to use 10% so that the app is more likely to need scaling. The `minReplicas` and `maxReplicas` fields indicate that the Deployment should have between one and three replicas at any given time depending on load.
+
+Now, in the Terminal we run:
+
+```bash
+# Contact the app 1000 times to increase load
+# App-URL: Web UI (Developer) > Topology > (Choose Node.js App) > Routes: Copy URL
+for i in `seq 1000`; do curl -L <App-URL>; done
+for i in `seq 1000`; do curl -L https://nodejs-ex-git-sn-labs-mxagar.labs-prod-openshift-san-a45631dc5778dc6371c67d206ba9ae5c-0000.us-east.containers.appdomain.cloud; done
+
+# We get the app HTML code
+```
+
+Now, we click on 
+
+    Web UI (Developer) > Topology > (Choose Node.js App) > HorizontalPodAutoscalers: nodejs-ex-git-hpa
+      Scale target: nodejs-ex-git
+      Deployment details: we should see 3 Pods
+
+So Open Shift automatically scaled the Deployment.
+
+### 5.5 Glossary
+
+> - A/B testing: Strategy is mostly used for testing new features in front-end applications. It is used to evaluate two versions of the application namely A and B, to assess which one performs better in a controlled environment. The two versions of the applications differ in terms of features and cater to different sets of users. Based on the interaction and responses received from the users such as feedback, you can choose one of the versions of the application that can be deployed globally into production.
+> - Build: The process of transforming inputs into a resultant object.
+> - BuildConfig: An OpenShift-specific object that defines the process for a build to follow. The build process makes use of the input sources and the build strategy. The BuildConfig is the blueprint, and the build is an instance of that blueprint.
+> - Canary Deployments: Aims to deploy the new version of the application by gradually increasing the number of users. The canary deployment strategy uses the real users to test the new version of the application. As a result, bugs and issues can be detected and fixed before the new version of the application is deployed globally for all the users.
+> - Circuit breaking: A method to prevent errors in one microservice from cascading to other microservices.
+> - Configuration Change: A trigger that causes a new build to run when a new BuildConfig resource is created.
+> - Control Plane: The control plane takes the desired configuration and its view of the services and dynamically programs and updates the proxy servers as the environment changes.
+> - Custom build strategy: Requires you to define and create your own builder image.
+> - Custom builder images: Are regular Docker images that contain the logic needed to transform the inputs into the expected output.
+> - CRDs: Custom code that defines a resource to add to your Kubernetes API server without building a complete custom server.
+> - Custom controllers: Reconcile the custom resources (CRDs) actual state with its desired state.
+> - Data plane: Communication between services is handled by the data plane. If a service mesh is absent, the network cannot identify the type of traffic that flows, the source, and the destination and make any necessary decisions.
+> - Enforceability (Control): Istio provides control by enforcing policies across an entire fleet and ensures resources are fairly distributed among consumers.
+> - Envoy proxy: All network traffic is subject to or intercepted by a proxy, called Envoy, used by the service mesh and allows many features depending on the configuration.
+> - Human operators: Understand the systems they control. They know how to deploy services and how to recognize and fix problems.
+> - Image Change: A trigger to rebuild a containerized application when a new or updated version of an image is available. For example, if an application is built using a Node.js base image, that image will be updated as security fixes are released and other updates occur.
+> - ImageStream: An abstraction for referencing container images within OpenShift. Each image contains an ID, or digest, that identifies it. ImageStreams do not contain image data but rather are pointers to image digests.
+> - ImageStream Tag: An identity to the pointer in an ImageStream that points to a certain image in a registry.
+> - Istio: A platform-independent and popular service mesh platform, often used with Kubernetes. It intelligently controls the flow of traffic and API calls between services, conducts a range of tests and reduces the complexity of managing network services. Istio secures services through authentication, authorization, and encryption. Istio provides control by defining policies that can be enforced across an entire fleet. With Istio, you can observe traffic flow in your mesh so you can trace call flows, dependencies, and you can view service communication metrics such as latency, traffic, errors and saturation.
+> - Man-in-the-middle attacks: A man-in-the-middle (MiTM) attack is a type of cyber-attack where the attacker secretly intercepts and relays messages between two parties who believe they are communicating directly with each other. The attack is a type of eavesdropping in which the attacker intercepts and then controls the entire conversation.
+> - Observability: Helps to observe the traffic flow in your mesh, trace call flows and dependencies, and view metrics such as latency and errors.
+> - OpenShift: A hybrid cloud, enterprise Kubernetes application.
+> - OpenShift CI/CD process: Automatically merges new code changes to the repository, builds, tests, approves, and deploys a new version to different environments.
+> - Operators: Automate cluster tasks and act as a custom controller to extend the Kubernetes API.
+> - Operator Framework: Is a family of tools and capabilities to deliver an efficient customer experience. It is not just about writing code; what is also critical is testing, delivery, and updating Operators.
+> - OperatorHub: Web console lets cluster administrators find Operators to install on their cluster. It provides many different types of Operators available, including Red Hat Operators, Certified Operators from independent service vendors partnered with Red Hat, Community Operators from the open-source community but not officially supported by Red Hat, and custom Operators defined by users.
+> - Operator Lifecycle Manager: (or OLM) Controls the install, upgrade, and role-based access control (or RBAC) of Operators in a cluster.
+> - Operator maturity model: Defines the phases of maturity for general day two Operations activities and ranges from Basic Install to Auto Pilot.
+> - Operator Pattern: A system design that links a Controller to one or more custom resources.
+> - Operator Registry: Stores CRDs, cluster service versions (CSVs), and Operator metadata for packages and channels. It runs in Kubernetes or OpenShift clusters to provide the Operator catalog data to OLM.
+> - Operator SDK: (which includes Helm, Go, and Ansible) Helps authors build, test, and package their Operators without requiring knowledge of Kubernetes API complexities.
+> - postCommit: Section defines an optional build hook.
+> - Retries: A method to prevent errors in one microservice from cascading to other microservices.
+> - runPolicy: Field controls how builds created from a build configuration need to run. Values include the default Serial (sequentially) and simultaneously.
+> - Service Broker: Provides a short-running process that cannot perform the consecutive day’s operations such as upgrades, failover, or scaling.
+> - Service Mesh: A dedicated layer for making service-to-service communication secure and reliable. It provides traffic management to control the flow of traffic between services, security to encrypt traffic between services, and observability of service behavior; so, you can troubleshoot and optimize applications.
+> - Software operators: Try to capture the knowledge of human operators and automate the same processes.
+> - Source-to-Image: A tool for building reproducible container images. Also abbreviated S2i, it injects application source code into a container image to produce a ready-to-run image.
+> - Source strategy: Section shows the strategy used to execute the build, such as a Source, Docker, or Custom strategy.
+> - Source type: Determines the primary input like a Git repository, an inline Dockerfile, or binary payloads.
+> - Webhook: A trigger that sends a request to an OpenShift Container Platform API endpoint. Often this will be a GitHub webhook, though it can also be a generic webhook. If a GitHub webhook is utilized, GitHub can send the request to OpenShift when there is a new commit on a certain branch, or a pull request is merged, or under many more circumstances. Webhooks are a great way to automate development flows so that builds can occur automatically as new code is developed. 
+
+## 6. Capstone
+
+We need to
+
+> deploy a simple guestbook application which will have a text input where one can enter any text and submit it. For all of these, we will create Kubernetes Deployments and Pods. Then we will apply Horizontal Pod Scaling to the Guestbook application and finally, work on Rolling Updates and Rollbacks.
+
+> For each of the ten tasks, provide a screenshot and upload the JPEG (.jpg) file for your peers to review when you submit your work.
+> - Task 1: Updation of the Dockerfile. (5 points)
+> - Task 2: The guestbook image being pushed to IBM Cloud Container Registry correctly. (1 point)
+> - Task 3: Index page of the deployed Guestbook – v1 application. (2 points)
+> - Task 4: Horizontal Pod Autoscaler creation. (1 point)
+> - Task 5: The replicas in the Horizontal Pod Autoscaler being scaled correctly. (2 points)
+> - Task 6: The Docker build and push commmands for updating the guestbook.(2 points)
+> - Task 7: Deployment configuration for autoscaling. (1 point)
+> - Task 8: Updated index page of the deployed Guestbook – v2 application after rollout of the deployment. (2 points)
+> - Task 9: The revision history for the deployment after rollout of the deployment. (2 points)
+> - Task 10: The udpated deployment after Rollback of the update. (2 points)
 
 ## Extra: Kubernetes Tips
 
