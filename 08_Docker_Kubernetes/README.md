@@ -62,6 +62,8 @@ Table of contents:
       - [Scaling the Application in the Open Shift Web UI](#scaling-the-application-in-the-open-shift-web-ui)
     - [5.5 Glossary](#55-glossary)
   - [6. Capstone](#6-capstone)
+    - [Evaluation Rubrics](#evaluation-rubrics)
+    - [Setup](#setup)
   - [Extra: Kubernetes Tips](#extra-kubernetes-tips)
 
 ## 1. Introduction: Docker Containers
@@ -1795,6 +1797,8 @@ So Open Shift automatically scaled the Deployment.
 
 ### 5.5 Glossary
 
+In the following, the Glossary as provided by IBM is cited:
+
 > - A/B testing: Strategy is mostly used for testing new features in front-end applications. It is used to evaluate two versions of the application namely A and B, to assess which one performs better in a controlled environment. The two versions of the applications differ in terms of features and cater to different sets of users. Based on the interaction and responses received from the users such as feedback, you can choose one of the versions of the application that can be deployed globally into production.
 > - Build: The process of transforming inputs into a resultant object.
 > - BuildConfig: An OpenShift-specific object that defines the process for a build to follow. The build process makes use of the input sources and the build strategy. The BuildConfig is the blueprint, and the build is an instance of that blueprint.
@@ -1843,8 +1847,14 @@ We need to
 
 > deploy a simple guestbook application which will have a text input where one can enter any text and submit it. For all of these, we will create Kubernetes Deployments and Pods. Then we will apply Horizontal Pod Scaling to the Guestbook application and finally, work on Rolling Updates and Rollbacks.
 
+I am not adding the app code to the current guide/repository. Here's the file structure:
+
+![Capstone: Guestbook app code](./pics/capstone_files.jpg)
+
+### Evaluation Rubrics
+
 > For each of the ten tasks, provide a screenshot and upload the JPEG (.jpg) file for your peers to review when you submit your work.
-> - Task 1: Updation of the Dockerfile. (5 points)
+> - Task 1: Updating the Dockerfile. (5 points)
 > - Task 2: The guestbook image being pushed to IBM Cloud Container Registry correctly. (1 point)
 > - Task 3: Index page of the deployed Guestbook – v1 application. (2 points)
 > - Task 4: Horizontal Pod Autoscaler creation. (1 point)
@@ -1854,6 +1864,21 @@ We need to
 > - Task 8: Updated index page of the deployed Guestbook – v2 application after rollout of the deployment. (2 points)
 > - Task 9: The revision history for the deployment after rollout of the deployment. (2 points)
 > - Task 10: The udpated deployment after Rollback of the update. (2 points)
+
+### Setup
+
+In a new Terminal:
+
+```bash
+# Clone project
+cd /home/project
+[ ! -d 'guestbook' ] && git clone https://github.com/ibm-developer-skills-network/guestbook
+cd guestbook
+ls # LICENSE  README.md  v1  v2
+cd v1/guestbook
+```
+
+[Multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
 
 ## Extra: Kubernetes Tips
 
