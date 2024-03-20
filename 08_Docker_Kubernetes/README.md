@@ -1856,6 +1856,8 @@ I am not adding the app code to the current guide/repository. Here's the file st
 
 ![Capstone: Guestbook app code](./pics/capstone_files.jpg)
 
+The submitted screenshots can be found in [`lab/capstone/submission/`](./lab/capstone/submission/).
+
 ### Evaluation Rubrics
 
 > For each of the ten tasks, provide a screenshot and upload the JPEG (.jpg) file for your peers to review when you submit your work.
@@ -2096,6 +2098,157 @@ kubectl get hpa guestbook
 
 ### Perform Rolling Updates and Rollbacks on the Guestbook Application
 
+First, update the title and header in `index.html` to any other suitable title and header like <Your name> Guestbook - v2 & Guestbook - v2.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+    <meta charset="utf-8">
+    <meta content="width=device-width" name="viewport">
+    <link href="style.css" rel="stylesheet">
+    <title>Mikel's Guestbook - v2</title> <!-- HERE -->
+  </head>
+  <body>
+    <div id="header">
+      <h1>Guestbook - v2</h1> <!-- HERE -->
+    </div>
+
+    <div id="guestbook-entries">
+      <link href="https://afeld.github.io/emoji-css/emoji.css" rel="stylesheet">
+      <p>Waiting for database connection... <i class='em em-boat'></i></p>
+      
+    </div>
+
+    <div>
+      <form id="guestbook-form">
+        <input autocomplete="off" id="guestbook-entry-content" type="text">
+        <a href="#" id="guestbook-submit">Submit</a>
+      </form>
+    </div>
+
+    <div>
+      <p><h2 id="guestbook-host-address"></h2></p>
+      <p><a href="env">/env</a>
+      <a href="info">/info</a></p>
+    </div>
+    <script src="jquery.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
+```
+
+Then, build and push a new image:
+
+```bash
+# Go to directory
+cd .../guestbook/v1/guestbook
+
+# Build and push the updated app image
+export MY_NAMESPACE=sn-labs-mikel
+docker build . -t us.icr.io/$MY_NAMESPACE/guestbook:v1 && docker push us.icr.io/$MY_NAMESPACE/guestbook:v1
+```
+
+After that, update the `deployment.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guestbook
+  labels:
+    app: guestbook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guestbook
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: guestbook
+    spec:
+      containers:
+      - image: us.icr.io/sn-labs-mikel/guestbook:v1
+        imagePullPolicy: Always
+        name: guestbook
+        ports:
+        - containerPort: 3000
+          name: http
+        resources:
+          # New limits: 50m -> 5m, 20m -> 2m
+          limits:
+            cpu: 5m
+          requests:
+            cpu: 2m
+      imagePullSecrets:
+      - name: kube-cr-secret
+```
+
+And deploy it:
+
+```bash
+kubectl apply -f deployment.yml
+
+# Open a new terminal and run the port-forward command again
+kubectl port-forward deployment.apps/guestbook 3000:3000
+
+# Launch your application on port 3000 as done before
+# We should see the web with the "v2" headline.
+# WARNING: sometimes the old web is cached, so we need to refresh the page...
+```
+
+Now, we perform some rollouts:
+
+```bash
+# See the history of deployment rollouts
+kubectl rollout history deployment/guestbook
+# deployment.apps/guestbook 
+# REVISION  CHANGE-CAUSE
+# 1         <none>
+# 2         <none>
+
+# See the details of Revision of the deployment rollout
+kubectl rollout history deployments guestbook --revision=2
+# deployment.apps/guestbook with revision #2
+# Pod Template:
+#   Labels:       app=guestbook
+#         pod-template-hash=5889966998
+#   Containers:
+#    guestbook:
+#     Image:      us.icr.io/sn-labs-mikel/guestbook:v1
+#     Port:       3000/TCP
+#     Host Port:  0/TCP
+#     Limits:
+#       cpu:      5m
+#     Requests:
+#       cpu:      2m
+#     Environment:        <none>
+#     Mounts:     <none>
+#   Volumes:      <none>
+
+# Run the below command to get the replica sets and observe the deployment which is being used now
+kubectl get rs
+# NAME                               DESIRED   CURRENT   READY   AGE
+# guestbook-5889966998               1         1         1       82s
+# guestbook-6c9cc9f99b               0         0         0       103s
+
+# Run the below command to undo the deploymnent and set it to Revision 1
+kubectl rollout undo deployment/guestbook --to-revision=1
+# deployment.apps/guestbook rolled back
+
+# Run the below command to get the replica sets after the Rollout has been undone
+kubectl get rs
+# NAME                               DESIRED   CURRENT   READY   AGE
+# guestbook-5889966998               0         0         0       3m6s
+# guestbook-6c9cc9f99b               1         1         1       3m27s
+```
 
 
 ## Extra: Summary of Kubernetes Commands
